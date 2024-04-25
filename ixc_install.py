@@ -20,10 +20,11 @@ def find_python_include_path():
 def build(cflags):
     files = [
         "pywind/clib/netif/linux_tuntap.c",
-        "pywind/clib/debug.c"
+        "pywind/clib/debug.c",
+        "ixc_proxy/lib/clib/pytap.c",
     ]
 
-    sys_build.do_compile(files, "ixc_proxy/lib/proxy.so", cflags, is_shared=True)
+    sys_build.do_compile(files, "ixc_proxy/lib/pytap.so", cflags, is_shared=True)
 
 
 def main():
