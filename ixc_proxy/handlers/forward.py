@@ -47,7 +47,7 @@ class forward_handler(udp_handler.udp_handler):
         self.add_evt_write(self.fileno)
 
     def send_notify(self):
-        dev_name = self.dispatcher.tap_devname()
+        dev_name = self.dispatcher.myname()
         s = "IXCSYS\r\n\r\n" + dev_name
         self.send_to_router(0, s.encode())
 

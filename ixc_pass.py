@@ -2,7 +2,6 @@
 
 
 import sys, getopt, os, signal, importlib, json, socket, struct
-import traceback
 
 BASE_DIR = os.path.dirname(sys.argv[0])
 
@@ -15,6 +14,7 @@ LOG_FILE = "/tmp/ixc_pass.log"
 ERR_FILE = "/tmp/ixc_pass_error.log"
 
 import pywind.evtframework.evt_dispatcher as dispatcher
+import pywind.lib.netutils as netutils
 import ixc_proxy.lib.logging as logging
 import ixc_proxy.lib.proc as proc
 import ixc_proxy.lib.osnet as osnet
@@ -24,7 +24,7 @@ import ixc_proxy.handlers.tapdev as tapdev
 
 class ixc_passd(dispatcher.dispatcher):
     __debug = None
-    __DEVNAME = "ixcpass"
+    __DEVNAME = "ixcpass node"
     __server_address = None
     __tap_fd = None
     __fwd_fd = None
@@ -40,14 +40,18 @@ class ixc_passd(dispatcher.dispatcher):
         self.__use_ipv6 = use_ipv6
         self.__ifname = ifname
 
+        if not debug:
+            sys.stdout = open(LOG_FILE, "w")
+            sys.stderr = open(ERR_FILE, "w")
+
         self.create_poll()
         self.start()
 
     def start(self):
         self.__tap_fd = self.create_handler(-1, tapdev.tap_handler)
-        self.__fwd_fd = self.create_handler(-1, fwd.forward_handler, is_ipv6=False)
+        self.__fwd_fd = self.create_handler(-1, fwd.forward_handler, is_ipv6=self.__use_ipv6)
 
-        #self.config_local_network()
+        self.config_local_network()
 
     def server_addr(self):
         return self.__server_address
@@ -57,17 +61,6 @@ class ixc_passd(dispatcher.dispatcher):
 
     def send_msg_to_local(self, message: bytes):
         self.get_handler(self.__tap_fd).send_msg(message)
-
-    def set_server_address(self):
-        if not self.__server_address:
-            self.__server_address = self.get_gateway_address()
-            return
-        ''''''
-
-    def get_gateway_address(self):
-        """获取网关地址
-        """
-        pass
 
     def config_local_network(self):
         """配置本地网络
@@ -79,10 +72,11 @@ class ixc_passd(dispatcher.dispatcher):
             # "echo 1 > /proc/sys/net/ipv4/ip_forward"
         ]
 
-        for cmd in cmds:
-            os.system(cmd)
-            cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
-            os.system(cmd)
+        for cmd in cmds: os.system(cmd)
+        cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
+        os.system(cmd)
+        cmd = "ip link set dev %s master ixcpassbr" % (self.tap_devname(),)
+        os.system(cmd)
         os.system("ip link set %s promisc on" % self.__ifname)
         os.system("ip link set %s promisc on" % self.tap_devname())
         os.system("ip link set %s up" % self.__ifname)
@@ -96,17 +90,20 @@ class ixc_passd(dispatcher.dispatcher):
         os.system("ip link del ixcpassbr")
 
     def tap_devname(self):
+        return "ixcpass"
+
+    def myname(self):
         return self.__DEVNAME
 
     def release(self):
-        if self.__fwd_fd>=0:
+        if self.__fwd_fd >= 0:
             self.delete_handler(self.__fwd_fd)
-        if self.__tap_fd>=0:
+        if self.__tap_fd >= 0:
             self.delete_handler(self.__tap_fd)
         self.unconfig_local_network()
 
 
-def __start_service(debug,device_name, ifname, host, use_ipv6):
+def __start_service(debug, device_name, ifname, host, use_ipv6):
     if not debug and os.path.isfile(PID_FILE):
         print("the pass server process exists")
         return
@@ -126,13 +123,13 @@ def __start_service(debug,device_name, ifname, host, use_ipv6):
 
     if debug:
         try:
-            cls.ioloop(debug,device_name, ifname, host, use_ipv6)
+            cls.ioloop(debug, device_name, ifname, host, use_ipv6)
         except:
             cls.release()
             logging.print_error()
         return
     try:
-        cls.ioloop(debug,device_name, ifname, host, use_ipv6)
+        cls.ioloop(debug, device_name, ifname, host, use_ipv6)
     except:
         cls.release()
         logging.print_error()
@@ -147,16 +144,19 @@ def __stop_service():
     if pid < 0:
         print("cannot found pass process")
         return
-
-    os.kill(pid, signal.SIGINT)
+    try:
+        os.kill(pid, signal.SIGINT)
+    except:
+        pass
+    os.remove(PID_FILE)
 
 
 def main():
     help_doc = """
     -d                  debug | start | stop    debug,start or stop application
-    --ifname=            set local ethernet card
+    --ifname=           set local ethernet card
+    --host=             set server address,if not set,it will use default gateway
     [--use-ipv6]        use ipv6 connect to host
-    [--host=]           set server address,if not set,it will use default gateway
     [--device-name=]    set device name
     
     """
@@ -170,8 +170,12 @@ def main():
         print(help_doc)
         return
 
+    if not os.path.isfile("/usr/bin/ip"):
+        print("not found linux ip command,please install it")
+        return
+
     d = ""
-    device_name = "ixcpass node"
+    device_name = ""
     ifname = ""
     use_ipv6 = False
     host = None
@@ -200,14 +204,27 @@ def main():
     if ifname == "":
         print("ERROR:please set ifname")
         return
-    if not device_name:
-        print("ERROR:please set device name")
-        return
 
     if ifname not in osnet.get_if_net_devices():
         print("ERROR:not found system ethernet card %s" % ifname)
         return
 
+    if not host:
+        print("ERROR:please set remote host")
+        return
+
+    if use_ipv6 and netutils.is_ipv4_address(host):
+        print("ERROR:not ipv6 address %s" % host)
+        return
+
+    if not device_name:
+        if os.path.isfile("/etc/hostname"):
+            with open("/etc/hostname", "r") as f:
+                device_name = f.read()
+            f.close()
+        else:
+            device_name = "ixcpass node"
+        ''''''
     if d == "debug": debug = True
     if d == "start": debug = False
 
