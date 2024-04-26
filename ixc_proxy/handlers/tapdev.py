@@ -52,6 +52,8 @@ class tap_handler(handler.handler):
         ''''''
 
     def send_msg(self, message: bytes):
+        if self.__queue_count  < 0:
+            print("ZZZZZ")
         # 检查队列溢出那么丢弃最开始的数据包
         if self.__queue_count == 1024:
             self.__queue_count -= 1
