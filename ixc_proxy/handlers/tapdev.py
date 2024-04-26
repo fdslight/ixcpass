@@ -44,22 +44,21 @@ class tap_handler(handler.handler):
                 break
             try:
                 os.write(self.fileno, ether_data)
+                self.__queue_count -= 1
             except BlockingIOError:
                 self.__write_queue.insert(0, ether_data)
                 break
-            # self.__queue_count -= 1
+            ''''''
         ''''''
 
     def send_msg(self, message: bytes):
-        """
         # 检查队列溢出那么丢弃最开始的数据包
-        if self.__queue_count > 1024:
+        if self.__queue_count == 1024:
             self.__queue_count -= 1
             self.__write_queue.pop(0)
-        """
 
+        self.__queue_count += 1
         self.__write_queue.append(message)
-        # self.__queue_count += 1
         self.add_evt_write(self.fileno)
 
     def delete(self):
