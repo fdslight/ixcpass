@@ -10,10 +10,12 @@ import ixc_proxy.lib.pytap as pytap
 class tap_handler(handler.handler):
     __block_size = None
     __write_queue = None
+    __queue_count = None
 
     def init_func(self, creator_fd, *args, **kwargs):
         self.__block_size = 16 * 1024
         self.__write_queue = []
+        self.__queue_count = 0
         fd = pytap.tap_open(self.dispatcher.tap_devname())
 
         if fd < 0: return -1
@@ -45,11 +47,17 @@ class tap_handler(handler.handler):
             except BlockingIOError:
                 self.__write_queue.insert(0, ether_data)
                 break
-            ''''''
+            self.__queue_count -= 1
         ''''''
 
     def send_msg(self, message: bytes):
+        # 检查队列溢出那么丢弃最开始的数据包
+        if self.__queue_count > 1024:
+            self.__queue_count -= 1
+            self.__write_queue.pop(0)
+
         self.__write_queue.append(message)
+        self.__queue_count += 1
         self.add_evt_write(self.fileno)
 
     def delete(self):
