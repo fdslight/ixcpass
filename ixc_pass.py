@@ -57,6 +57,13 @@ class ixc_passd(dispatcher.dispatcher):
 
         self.__time = now
 
+    def check_if_have_bridge(self):
+        """定期检查网卡是否在桥接状态
+        """
+        fdst = os.popen("ip addr")
+        for line in fdst:
+            pass
+
     def start(self):
         self.__tap_fd = self.create_handler(-1, tapdev.tap_handler)
         self.config_local_network()
