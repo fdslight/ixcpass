@@ -1,12 +1,13 @@
 import os
-import socket, time
+import socket
+import time
 
-fdst = os.popen('ip addr')
-for line in fdst:
-    p = line.find("end0")
-    if p < 0: continue
-    p = line.find("master")
-    if p >= 0: continue
-    print(line)
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.bind(("0.0.0.0", 0))
 
-fdst.close()
+for i in range(30):
+    data=os.urandom(32)
+    s.sendto(data, ("192.168.1.1", 53))
+    time.sleep(10)
+
+s.close()
