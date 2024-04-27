@@ -12,10 +12,7 @@ class forward_handler(udp_handler.udp_handler):
 
         s = socket.socket(fa, socket.SOCK_DGRAM)
         self.set_socket(s)
-        if is_ipv6:
-            self.bind(("::", 0))
-        else:
-            self.bind(("0.0.0.0", 0))
+        self.connect((self.dispatcher.server_addr(), 1999))
         self.register(self.fileno)
         self.add_evt_read(self.fileno)
         self.set_timeout(self.fileno, 10)
@@ -40,10 +37,8 @@ class forward_handler(udp_handler.udp_handler):
 
     def send_to_router(self, _type: int, message: bytes):
         wrap_msg = struct.pack("!I", _type) + message
-        server_addr = self.dispatcher.server_addr()
-        # 有时候会发生网关地址还未获取的情况
-        if not server_addr: return
-        self.sendto(wrap_msg, (server_addr, 1999))
+
+        self.send(wrap_msg)
         self.add_evt_write(self.fileno)
 
     def send_notify(self):
