@@ -77,6 +77,7 @@ class ixc_passd(dispatcher.dispatcher):
         os.system(cmd)
         os.system("ip link set %s promisc on" % self.__ifname)
         os.system("ip link set %s promisc on" % self.tap_devname())
+        # 首先设置混杂模式再开启桥接,不然可能存在物理网卡无法桥接情况
         cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
         os.system(cmd)
         os.system("ip link set %s up" % self.__ifname)
