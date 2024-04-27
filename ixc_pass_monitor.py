@@ -51,6 +51,9 @@ def start(args: list):
 
     proc.write_pid(MYPID_PATH)
 
+    # 等待操作系统其他模块加载完成
+    time.sleep(60)
+
     try:
         while 1:
             if not is_exited: up_time = time.time()
