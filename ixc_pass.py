@@ -54,15 +54,23 @@ class ixc_passd(dispatcher.dispatcher):
         if now - self.__time < 60: return
         if self.__fwd_fd < 0:
             self.__fwd_fd = self.create_handler(-1, fwd.forward_handler, is_ipv6=self.__use_ipv6)
-
+        self.check_if_have_bridge()
         self.__time = now
 
     def check_if_have_bridge(self):
         """定期检查网卡是否在桥接状态
         """
-        fdst = os.popen("ip addr")
+        fdst = os.popen('ip addr')
         for line in fdst:
-            pass
+            p = line.find(self.__ifname)
+            if p < 0: continue
+            p = line.find("master")
+            if p >= 0: continue
+            # 定期检查桥接是否存在
+            cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
+            os.system(cmd)
+
+        fdst.close()
 
     def start(self):
         self.__tap_fd = self.create_handler(-1, tapdev.tap_handler)
@@ -93,7 +101,6 @@ class ixc_passd(dispatcher.dispatcher):
         os.system(cmd)
         os.system("ip link set %s promisc on" % self.__ifname)
         os.system("ip link set %s promisc on" % self.tap_devname())
-        # 首先设置混杂模式再开启桥接,不然可能存在物理网卡无法桥接情况
         cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
         os.system(cmd)
         os.system("ip link set %s up" % self.__ifname)
