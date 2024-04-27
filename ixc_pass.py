@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-import sys, getopt, os, signal, importlib, json, socket, struct
+import sys, getopt, os, signal, time
 
 BASE_DIR = os.path.dirname(sys.argv[0])
 
@@ -30,6 +30,7 @@ class ixc_passd(dispatcher.dispatcher):
     __fwd_fd = None
     __use_ipv6 = None
     __ifname = None
+    __time = None
 
     def init_func(self, debug, device_name, ifname, host, use_ipv6):
         self.__tap_fd = -1
@@ -39,6 +40,7 @@ class ixc_passd(dispatcher.dispatcher):
         self.__DEVNAME = device_name
         self.__use_ipv6 = use_ipv6
         self.__ifname = ifname
+        self.__time = time.time()
 
         if not debug:
             sys.stdout = open(LOG_FILE, "w")
@@ -47,10 +49,16 @@ class ixc_passd(dispatcher.dispatcher):
         self.create_poll()
         self.start()
 
+    def auto_restart(self):
+        now = time.time()
+        if now - self.__time < 60: return
+        if self.__fwd_fd < 0:
+            self.__fwd_fd = self.create_handler(-1, fwd.forward_handler, is_ipv6=self.__use_ipv6)
+
+        self.__time = now
+
     def start(self):
         self.__tap_fd = self.create_handler(-1, tapdev.tap_handler)
-        self.__fwd_fd = self.create_handler(-1, fwd.forward_handler, is_ipv6=self.__use_ipv6)
-
         self.config_local_network()
 
     def server_addr(self):
@@ -102,6 +110,12 @@ class ixc_passd(dispatcher.dispatcher):
         if self.__tap_fd >= 0:
             self.delete_handler(self.__tap_fd)
         self.unconfig_local_network()
+
+    def tell_fwd_disconnect(self):
+        self.__fwd_fd = -1
+
+    def myloop(self):
+        self.auto_restart()
 
 
 def __start_service(debug, device_name, ifname, host, use_ipv6):

@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
+import time, socket, struct
+
 import pywind.evtframework.handlers.udp_handler as udp_handler
-import socket, struct
 
 
 class forward_handler(udp_handler.udp_handler):
+    __time = None
+
     def init_func(self, creator_fd, is_ipv6=False):
+        self.__time = time.time()
         if is_ipv6:
             fa = socket.AF_INET6
         else:
@@ -26,6 +30,7 @@ class forward_handler(udp_handler.udp_handler):
         if len(message) < 7: return
         _type, = struct.unpack("!I", message[0:4])
         if _type != 8: return
+        self.__time = time.time()
         new_msg = message[4:]
         self.dispatcher.send_msg_to_local(new_msg)
 
@@ -47,6 +52,12 @@ class forward_handler(udp_handler.udp_handler):
         self.send_to_router(0, s.encode())
 
     def udp_timeout(self):
+        now = time.time()
+        if now - self.__time > 60:
+            self.dispatcher.tell_fwd_disconnect()
+            self.delete_handler(self.fileno)
+            return
+
         self.send_notify()
         self.set_timeout(self.fileno, 10)
 
