@@ -65,6 +65,7 @@ class ixc_passd(dispatcher.dispatcher):
         return self.__server_address
 
     def send_msg_to_router(self, message: bytes):
+        if self.__fwd_fd < 0: return
         self.get_handler(self.__fwd_fd).send_msg(message)
 
     def send_msg_to_local(self, message: bytes):
