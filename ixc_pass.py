@@ -73,12 +73,12 @@ class ixc_passd(dispatcher.dispatcher):
         ]
 
         for cmd in cmds: os.system(cmd)
-        cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
-        os.system(cmd)
         cmd = "ip link set dev %s master ixcpassbr" % (self.tap_devname(),)
         os.system(cmd)
         os.system("ip link set %s promisc on" % self.__ifname)
         os.system("ip link set %s promisc on" % self.tap_devname())
+        cmd = "ip link set dev %s master ixcpassbr" % (self.__ifname,)
+        os.system(cmd)
         os.system("ip link set %s up" % self.__ifname)
         # 关闭外网IPv6支持
         os.system("echo 1 > /proc/sys/net/ipv6/conf/ixcpassbr/disable_ipv6")
